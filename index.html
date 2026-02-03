@@ -3,56 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vibration Analyzer Pro</title>
+    <title>ドキドキ💓菜々子さん</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0f1115; --card: #1c1f26; --accent: #00ff41; --text: #e0e6ed; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root { --pink: #ff66b2; --light-pink: #ffe6f2; --bg: #fff0f5; --text: #4a4a4a; }
+        body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* 上部パネル：数値と設定 */
-        .top-panel { height: 45%; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 2px solid #2d333d; padding: 10px; box-sizing: border-box; }
-        .header { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        .top-panel { height: 45%; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 5px dotted var(--pink); padding: 10px; box-sizing: border-box; }
+        .header { font-size: 1.5rem; font-weight: bold; margin-bottom: 5px; color: var(--pink); text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
         
-        .controls { background: rgba(255,255,255,0.05); padding: 8px 20px; border-radius: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        select { background: #2d333d; color: var(--accent); border: 1px solid #444; border-radius: 5px; padding: 5px; font-weight: bold; }
+        .controls { background: var(--light-pink); padding: 8px 20px; border-radius: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--pink); }
+        label { font-size: 0.8rem; font-weight: bold; color: var(--pink); }
+        select { background: white; color: var(--pink); border: 1px solid var(--pink); border-radius: 5px; padding: 5px; font-weight: bold; }
 
-        .val-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 90%; max-width: 400px; }
-        .axis-box { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border-left: 3px solid var(--accent); }
-        .axis-label { font-size: 0.7rem; color: #888; margin-bottom: 5px; }
-        .axis-num { font-size: 1.6rem; font-weight: bold; font-family: 'Courier New', monospace; color: var(--accent); }
+        .val-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; width: 95%; max-width: 400px; }
+        .axis-box { background: white; padding: 10px; border-radius: 15px; border: 2px solid var(--pink); box-shadow: 0 4px 0 var(--pink); }
+        .axis-label { font-size: 0.8rem; color: var(--pink); font-weight: bold; margin-bottom: 5px; }
+        .axis-num { font-size: 1.4rem; font-weight: bold; font-family: 'Courier New', monospace; color: #333; }
         
-        #hz-tag { font-size: 0.8rem; color: #888; margin-top: 10px; }
+        #hz-tag { font-size: 0.8rem; color: #888; margin-top: 10px; font-weight: bold; }
 
-        /* 下部パネル：グラフ */
-        .bottom-panel { height: 55%; padding: 15px; box-sizing: border-box; }
+        .bottom-panel { height: 55%; padding: 15px; box-sizing: border-box; background: white; }
         canvas { width: 100% !important; height: 100% !important; }
 
-        #startBtn { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 50px; font-size: 1.4rem; background: #007bff; color: white; border: none; border-radius: 40px; cursor: pointer; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-weight: bold; }
+        #startBtn { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 25px 60px; font-size: 1.8rem; background: var(--pink); color: white; border: none; border-radius: 50px; cursor: pointer; z-index: 1000; box-shadow: 0 10px 0 #cc518e; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<button id="startBtn">START ANALYSIS</button>
+<button id="startBtn">菜々子さんを呼ぶ💓</button>
 
 <div class="top-panel">
-    <div class="header">Vibration Monitor</div>
+    <div class="header">ドキドキ💓菜々子さん</div>
     
     <div class="controls">
-        <label style="font-size:0.8rem">REFRESH RATE:</label>
+        <label>更新間隔:</label>
         <select id="speedSelect">
-            <option value="100">0.1s (Ultra)</option>
-            <option value="200" selected>0.2s (Smooth)</option>
-            <option value="500">0.5s (Steady)</option>
-            <option value="1000">1.0s (Fixed)</option>
+            <option value="100">0.1秒</option>
+            <option value="200" selected>0.2秒</option>
+            <option value="500">0.5秒</option>
+            <option value="1000">1.0秒</option>
         </select>
     </div>
 
     <div class="val-grid">
-        <div class="axis-box"><div class="axis-label">X-AXIS</div><div id="x-val" class="axis-num">0.000</div></div>
-        <div class="axis-box"><div class="axis-label">Y-AXIS</div><div id="y-val" class="axis-num">0.000</div></div>
-        <div class="axis-box"><div class="axis-label">Z-AXIS</div><div id="z-val" class="axis-num">0.000</div></div>
+        <div class="axis-box"><div class="axis-label">X軸 (G)</div><div id="x-val" class="axis-num">0.000</div></div>
+        <div class="axis-box"><div class="axis-label">Y軸 (G)</div><div id="y-val" class="axis-num">0.000</div></div>
+        <div class="axis-box"><div class="axis-label">Z軸 (G)</div><div id="z-val" class="axis-num">0.000</div></div>
     </div>
-    <div id="hz-tag">Sampling: -- Hz</div>
+    <div id="hz-tag">サンプリング: -- Hz</div>
 </div>
 
 <div class="bottom-panel">
@@ -76,19 +75,20 @@ const psdChart = new Chart(ctx, {
         labels: [],
         datasets: [{
             data: [],
-            borderColor: '#00ff41',
-            borderWidth: 2,
+            borderColor: '#ff66b2',
+            borderWidth: 3,
             pointRadius: 0,
             fill: true,
-            backgroundColor: 'rgba(0, 255, 65, 0.05)'
+            backgroundColor: 'rgba(255, 102, 178, 0.1)',
+            tension: 0.4
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: { 
-            x: { grid: { color: '#2d333d' }, ticks: { color: '#666', font: { size: 10 } }, title: { display: true, text: 'Frequency (Hz)', color: '#444' } },
-            y: { grid: { color: '#2d333d' }, beginAtZero: true, suggestedMax: 0.4, ticks: { color: '#666' } }
+            x: { grid: { color: '#ffe6f2' }, ticks: { color: '#ff66b2' }, title: { display: true, text: '周波数 (Hz)', color: '#ff66b2' } },
+            y: { grid: { color: '#ffe6f2' }, beginAtZero: true, suggestedMax: 0.4, ticks: { color: '#ff66b2' } }
         },
         animation: false,
         plugins: { legend: { display: false } }
@@ -103,12 +103,10 @@ function handleMotion(event) {
     const acc = event.accelerationIncludingGravity;
     if (!acc) return;
 
-    // 合成加速度の計算
     const norm = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2) / G_CONSTANT;
     dataBuffer.push(norm);
     dataBuffer.shift();
 
-    // 数値表示
     document.getElementById('x-val').innerText = (acc.x / G_CONSTANT).toFixed(3);
     document.getElementById('y-val').innerText = (acc.y / G_CONSTANT).toFixed(3);
     document.getElementById('z-val').innerText = (acc.z / G_CONSTANT).toFixed(3);
@@ -121,7 +119,7 @@ function handleMotion(event) {
 
     frameCount++;
     if (now - lastHzCalc >= 1000) {
-        document.getElementById('hz-tag').innerText = "Sampling: " + ((frameCount * 1000) / (now - lastHzCalc)).toFixed(1) + " Hz";
+        document.getElementById('hz-tag').innerText = "サンプリング: " + ((frameCount * 1000) / (now - lastHzCalc)).toFixed(1) + " Hz";
         samplingRate = (frameCount * 1000) / (now - lastHzCalc);
         frameCount = 0;
         lastHzCalc = now;
@@ -162,7 +160,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
         }
         document.getElementById('startBtn').style.display = 'none';
     } catch (e) {
-        alert("Sensor error: " + e);
+        alert("エラーが発生しました: " + e);
     }
 });
 </script>
