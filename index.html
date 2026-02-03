@@ -3,71 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensor Hz Tester</title>
+    <title>Acc & PSD Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; }
-        #display { font-size: 3rem; font-weight: bold; color: #007bff; margin: 20px 0; }
-        button { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border-radius: 8px; border: none; background: #28a745; color: white; }
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; }
+        .top-panel { height: 40%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; border-bottom: 2px solid #ddd; }
+        .bottom-panel { height: 60%; padding: 10px; box-sizing: border-box; }
+        .val-display { display: flex; gap: 20px; margin: 15px 0; }
+        .axis-val { text-align: center; }
+        .label { font-size: 0.8rem; color: #666; }
+        .num { font-size: 1.5rem; font-weight: bold; font-family: monospace; }
+        #hz-tag { color: #28a745; font-size: 0.9rem; }
+        canvas { width: 100% !important; height: 100% !important; }
+        #startBtn { padding: 15px 40px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 30px; cursor: pointer; position: absolute; z-index: 10; }
     </style>
 </head>
 <body>
 
-    <h1>センサー周波数計測</h1>
-    <div id="display">0.0 Hz</div>
-    <p>現在のサンプリングレート</p>
+<button id="startBtn">解析開始</button>
+
+<div class="top-panel">
+    <h3>Real-time Acceleration (G)</h3>
+    <div id="hz-tag">-- Hz</div>
+    <div class="val-display">
+        <div class="axis-val"><div class="label">X</div><div id="x-val" class="num">0.000</div></div>
+        <div class="axis-val"><div class="label">Y</div><div id="y-val" class="num">0.000</div></div>
+        <div class="axis-val"><div class="label">Z</div><div id="z-val" class="num">0.000</div></div>
+    </div>
+</div>
+
+<div class="bottom-panel">
+    <canvas id="psdChart"></canvas>
+</div>
+
+<script>
+const SAMPLE_SIZE = 128; // FFTサンプル数 (2のべき乗)
+const G_CONSTANT = 9.80665;
+let dataBuffer = new Array(SAMPLE_SIZE).fill(0);
+let lastTime = performance.now();
+let frameCount = 0;
+let samplingRate = 60; // 初期値
+
+// Chart.js の設定
+const ctx = document.getElementById('psdChart').getContext('2d');
+const psdChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: new Array(SAMPLE_SIZE / 2).fill(0).map((_, i) => i),
+        datasets: [{ label: 'PSD (Z-axis)', data: [], borderColor: '#007bff', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0,123,255,0.1)' }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { 
+            x: { title: { display: true, text: 'Frequency (Hz)' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Intensity' } }
+        },
+        animation: false
+    }
+});
+
+function handleMotion(event) {
+    const acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+
+    // Z軸をメインに解析（床の振動などはZが顕著なため）
+    const gz = acc.z / G_CONSTANT;
     
-    <button id="startBtn">計測開始</button>
+    // 数値表示の更新
+    document.getElementById('x-val').innerText = (acc.x / G_CONSTANT).toFixed(3);
+    document.getElementById('y-val').innerText = (acc.y / G_CONSTANT).toFixed(3);
+    document.getElementById('z-val').innerText = gz.toFixed(3);
 
-    <script>
-        let lastTime = performance.now();
-        let frameCount = 0;
-        let hz = 0;
+    // バッファに蓄積
+    dataBuffer.push(gz);
+    dataBuffer.shift();
 
-        const display = document.getElementById('display');
-        const startBtn = document.getElementById('startBtn');
+    // Hz計測
+    frameCount++;
+    const now = performance.now();
+    if (now - lastTime >= 1000) {
+        samplingRate = (frameCount * 1000) / (now - lastTime);
+        document.getElementById('hz-tag').innerText = samplingRate.toFixed(1) + " Hz";
+        frameCount = 0;
+        lastTime = now;
+        
+        // 1秒ごとにグラフを更新
+        updatePSD();
+    }
+}
 
-        // 計測メイン処理
-        function handleMotion(event) {
-            frameCount++;
-            const now = performance.now();
-            const diff = now - lastTime;
-
-            // 1秒ごとにHzを計算して更新
-            if (diff >= 1000) {
-                hz = (frameCount * 1000) / diff;
-                display.innerText = hz.toFixed(1) + " Hz";
-                
-                // カウントをリセット
-                frameCount = 0;
-                lastTime = now;
-            }
+// 簡易的な離散フーリエ変換 (DFT) ※本来は高速なFFTライブラリ推奨
+function updatePSD() {
+    const N = SAMPLE_SIZE;
+    const psdValues = [];
+    const freqs = [];
+    
+    // 窓関数（ハミング窓）の適用と計算
+    for (let k = 0; k < N / 2; k++) {
+        let real = 0;
+        let imag = 0;
+        for (let n = 0; n < N; n++) {
+            const windowing = 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / (N - 1));
+            const angle = (2 * Math.PI * k * n) / N;
+            real += dataBuffer[n] * windowing * Math.cos(angle);
+            imag -= dataBuffer[n] * windowing * Math.sin(angle);
         }
+        const magnitude = Math.sqrt(real * real + imag * imag) / N;
+        psdValues.push(magnitude);
+        freqs.push(((k * samplingRate) / N).toFixed(1));
+    }
 
-        // 開始ボタンのクリックイベント
-        startBtn.addEventListener('click', async () => {
-            // iOSの許可申請処理
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceMotionEvent.requestPermission();
-                    if (permission === 'granted') {
-                        activateSensor();
-                    } else {
-                        alert("アクセスが拒否されました");
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-            } else {
-                // AndroidやPCブラウザの場合
-                activateSensor();
-            }
-            
-            startBtn.style.display = 'none'; // ボタンを隠す
-        });
+    psdChart.data.labels = freqs;
+    psdChart.data.datasets[0].data = psdValues;
+    psdChart.update();
+}
 
-        function activateSensor() {
-            window.addEventListener('devicemotion', handleMotion, true);
-        }
-    </script>
+document.getElementById('startBtn').addEventListener('click', async () => {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        const res = await DeviceMotionEvent.requestPermission();
+        if (res === 'granted') window.addEventListener('devicemotion', handleMotion, true);
+    } else {
+        window.addEventListener('devicemotion', handleMotion, true);
+    }
+    document.getElementById('startBtn').style.display = 'none';
+});
+</script>
 </body>
 </html>
