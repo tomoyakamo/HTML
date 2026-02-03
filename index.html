@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>High-Speed Vibration Analyzer</title>
+    <title>Variable Speed Analyzer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .top-panel { height: 35%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1e1e1e; border-bottom: 1px solid #333; }
-        .bottom-panel { height: 65%; padding: 10px; box-sizing: border-box; background: #121212; }
-        .val-display { display: flex; gap: 25px; margin-top: 10px; }
-        .axis-val { text-align: center; }
-        .label { font-size: 0.8rem; color: #aaa; }
+        .top-panel { height: 40%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1e1e1e; border-bottom: 1px solid #333; }
+        .bottom-panel { height: 60%; padding: 10px; box-sizing: border-box; background: #121212; }
+        .controls { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        select { padding: 5px 10px; border-radius: 5px; background: #333; color: white; border: 1px solid #555; font-size: 1rem; }
+        .val-display { display: flex; gap: 25px; margin-top: 5px; }
         .num { font-size: 1.6rem; font-weight: bold; font-family: 'Courier New', monospace; color: #00ff41; }
         #hz-tag { background: #333; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; color: #00ff41; margin-bottom: 5px; }
         canvas { width: 100% !important; height: 100% !important; }
@@ -20,16 +20,26 @@
 </head>
 <body>
 
-<button id="startBtn">計測開始（高感度モード）</button>
+<button id="startBtn">計測開始</button>
 
 <div class="top-panel">
     <div id="hz-tag">Waiting...</div>
-    <div class="val-display">
-        <div class="axis-val"><div class="label">X</div><div id="x-val" class="num">0.000</div></div>
-        <div class="axis-val"><div class="label">Y</div><div id="y-val" class="num">0.000</div></div>
-        <div class="axis-val"><div class="label">Z</div><div id="z-val" class="num">0.000</div></div>
+    
+    <div class="controls">
+        <label for="speedSelect">更新間隔:</label>
+        <select id="speedSelect">
+            <option value="100">0.1秒 (爆速)</option>
+            <option value="200" selected>0.2秒 (標準)</option>
+            <option value="500">0.5秒 (ゆっくり)</option>
+            <option value="1000">1.0秒 (安定)</option>
+        </select>
     </div>
-    <p style="font-size: 0.7rem; color: #888; margin-top: 10px;">※XYZ合成加速度(G)の周波数を解析中</p>
+
+    <div class="val-display">
+        <div class="axis-val"><div id="x-val" class="num">0.000</div></div>
+        <div class="axis-val"><div id="y-val" class="num">0.000</div></div>
+        <div class="axis-val"><div id="z-val" class="num">0.000</div></div>
+    </div>
 </div>
 
 <div class="bottom-panel">
@@ -44,59 +54,52 @@ let lastUpdate = performance.now();
 let lastHzCalc = performance.now();
 let frameCount = 0;
 let samplingRate = 60;
+let updateInterval = 200; // デフォルト 0.2秒
 
 const ctx = document.getElementById('psdChart').getContext('2d');
 const psdChart = new Chart(ctx, {
     type: 'line',
     data: {
-        labels: new Array(SAMPLE_SIZE / 2).fill(0),
-        datasets: [{
-            label: '振動強度 (PSD)',
-            data: [],
-            borderColor: '#00ff41',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: true,
-            backgroundColor: 'rgba(0, 255, 65, 0.1)'
-        }]
+        labels: [],
+        datasets: [{ label: 'PSD', data: [], borderColor: '#00ff41', borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 65, 0.1)' }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: { 
-            x: { grid: { color: '#333' }, title: { display: true, text: '周波数 (Hz)', color: '#888' }, ticks: { color: '#888' } },
-            y: { grid: { color: '#333' }, beginAtZero: true, title: { display: true, text: '強度', color: '#888' }, ticks: { color: '#888' } }
+            x: { grid: { color: '#333' }, ticks: { color: '#888' } },
+            y: { grid: { color: '#333' }, beginAtZero: true, suggestedMax: 0.5, ticks: { color: '#888' } }
         },
         animation: false,
         plugins: { legend: { display: false } }
     }
 });
 
+// プルダウンの変更を監視
+document.getElementById('speedSelect').addEventListener('change', (e) => {
+    updateInterval = parseInt(e.target.value);
+});
+
 function handleMotion(event) {
     const acc = event.accelerationIncludingGravity;
     if (!acc) return;
 
-    // XYZの合成加速度を計算（どの方向の振動も逃さない）
     const norm = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2) / G_CONSTANT;
-    
-    // 直近の重力影響を引く（簡易的なDC成分除去）
     dataBuffer.push(norm);
     dataBuffer.shift();
 
-    // 画面の数値更新（ここは毎フレーム）
     document.getElementById('x-val').innerText = (acc.x / G_CONSTANT).toFixed(3);
     document.getElementById('y-val').innerText = (acc.y / G_CONSTANT).toFixed(3);
     document.getElementById('z-val').innerText = (acc.z / G_CONSTANT).toFixed(3);
 
     const now = performance.now();
 
-    // 0.1秒(100ms)ごとにグラフを更新
-    if (now - lastUpdate >= 100) {
+    // 選択された間隔でグラフを更新
+    if (now - lastUpdate >= updateInterval) {
         updatePSD();
         lastUpdate = now;
     }
 
-    // サンプリングレート計測
     frameCount++;
     if (now - lastHzCalc >= 1000) {
         samplingRate = (frameCount * 1000) / (now - lastHzCalc);
@@ -110,15 +113,13 @@ function updatePSD() {
     const N = SAMPLE_SIZE;
     const psdValues = [];
     const freqs = [];
-    
-    // 直流成分（重力）を簡易除去するために平均を引く
     const avg = dataBuffer.reduce((a, b) => a + b) / N;
     const processedData = dataBuffer.map(v => v - avg);
 
-    for (let k = 1; k < N / 2; k++) { // k=0(直流)はスキップ
+    for (let k = 1; k < N / 2; k++) {
         let real = 0, imag = 0;
         for (let n = 0; n < N; n++) {
-            const windowing = 0.5 * (1 - Math.cos(2 * Math.PI * n / (N - 1))); // Hann窓
+            const windowing = 0.5 * (1 - Math.cos(2 * Math.PI * n / (N - 1)));
             const angle = (2 * Math.PI * k * n) / N;
             real += processedData[n] * windowing * Math.cos(angle);
             imag -= processedData[n] * windowing * Math.sin(angle);
@@ -129,7 +130,7 @@ function updatePSD() {
 
     psdChart.data.labels = freqs;
     psdChart.data.datasets[0].data = psdValues;
-    psdChart.update('none'); // アニメーションなしで高速描画
+    psdChart.update('none');
 }
 
 document.getElementById('startBtn').addEventListener('click', async () => {
