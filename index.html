@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Hz Tester</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; }
+        #display { font-size: 3rem; font-weight: bold; color: #007bff; margin: 20px 0; }
+        button { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border-radius: 8px; border: none; background: #28a745; color: white; }
+    </style>
+</head>
+<body>
+
+    <h1>センサー周波数計測</h1>
+    <div id="display">0.0 Hz</div>
+    <p>現在のサンプリングレート</p>
+    
+    <button id="startBtn">計測開始</button>
+
+    <script>
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let hz = 0;
+
+        const display = document.getElementById('display');
+        const startBtn = document.getElementById('startBtn');
+
+        // 計測メイン処理
+        function handleMotion(event) {
+            frameCount++;
+            const now = performance.now();
+            const diff = now - lastTime;
+
+            // 1秒ごとにHzを計算して更新
+            if (diff >= 1000) {
+                hz = (frameCount * 1000) / diff;
+                display.innerText = hz.toFixed(1) + " Hz";
+                
+                // カウントをリセット
+                frameCount = 0;
+                lastTime = now;
+            }
+        }
+
+        // 開始ボタンのクリックイベント
+        startBtn.addEventListener('click', async () => {
+            // iOSの許可申請処理
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    if (permission === 'granted') {
+                        activateSensor();
+                    } else {
+                        alert("アクセスが拒否されました");
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            } else {
+                // AndroidやPCブラウザの場合
+                activateSensor();
+            }
+            
+            startBtn.style.display = 'none'; // ボタンを隠す
+        });
+
+        function activateSensor() {
+            window.addEventListener('devicemotion', handleMotion, true);
+        }
+    </script>
+</body>
+</html>
