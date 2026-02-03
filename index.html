@@ -3,43 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Variable Speed Analyzer</title>
+    <title>Vibration Analyzer Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .top-panel { height: 40%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #1e1e1e; border-bottom: 1px solid #333; }
-        .bottom-panel { height: 60%; padding: 10px; box-sizing: border-box; background: #121212; }
-        .controls { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        select { padding: 5px 10px; border-radius: 5px; background: #333; color: white; border: 1px solid #555; font-size: 1rem; }
-        .val-display { display: flex; gap: 25px; margin-top: 5px; }
-        .num { font-size: 1.6rem; font-weight: bold; font-family: 'Courier New', monospace; color: #00ff41; }
-        #hz-tag { background: #333; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; color: #00ff41; margin-bottom: 5px; }
+        :root { --bg: #0f1115; --card: #1c1f26; --accent: #00ff41; --text: #e0e6ed; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* 上部パネル：数値と設定 */
+        .top-panel { height: 45%; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 2px solid #2d333d; padding: 10px; box-sizing: border-box; }
+        .header { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .controls { background: rgba(255,255,255,0.05); padding: 8px 20px; border-radius: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        select { background: #2d333d; color: var(--accent); border: 1px solid #444; border-radius: 5px; padding: 5px; font-weight: bold; }
+
+        .val-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 90%; max-width: 400px; }
+        .axis-box { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border-left: 3px solid var(--accent); }
+        .axis-label { font-size: 0.7rem; color: #888; margin-bottom: 5px; }
+        .axis-num { font-size: 1.6rem; font-weight: bold; font-family: 'Courier New', monospace; color: var(--accent); }
+        
+        #hz-tag { font-size: 0.8rem; color: #888; margin-top: 10px; }
+
+        /* 下部パネル：グラフ */
+        .bottom-panel { height: 55%; padding: 15px; box-sizing: border-box; }
         canvas { width: 100% !important; height: 100% !important; }
-        #startBtn { padding: 18px 45px; font-size: 1.3rem; background: #007bff; color: white; border: none; border-radius: 35px; cursor: pointer; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+
+        #startBtn { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 50px; font-size: 1.4rem; background: #007bff; color: white; border: none; border-radius: 40px; cursor: pointer; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-weight: bold; }
     </style>
 </head>
 <body>
 
-<button id="startBtn">計測開始</button>
+<button id="startBtn">START ANALYSIS</button>
 
 <div class="top-panel">
-    <div id="hz-tag">Waiting...</div>
+    <div class="header">Vibration Monitor</div>
     
     <div class="controls">
-        <label for="speedSelect">更新間隔:</label>
+        <label style="font-size:0.8rem">REFRESH RATE:</label>
         <select id="speedSelect">
-            <option value="100">0.1秒 (爆速)</option>
-            <option value="200" selected>0.2秒 (標準)</option>
-            <option value="500">0.5秒 (ゆっくり)</option>
-            <option value="1000">1.0秒 (安定)</option>
+            <option value="100">0.1s (Ultra)</option>
+            <option value="200" selected>0.2s (Smooth)</option>
+            <option value="500">0.5s (Steady)</option>
+            <option value="1000">1.0s (Fixed)</option>
         </select>
     </div>
 
-    <div class="val-display">
-        <div class="axis-val"><div id="x-val" class="num">0.000</div></div>
-        <div class="axis-val"><div id="y-val" class="num">0.000</div></div>
-        <div class="axis-val"><div id="z-val" class="num">0.000</div></div>
+    <div class="val-grid">
+        <div class="axis-box"><div class="axis-label">X-AXIS</div><div id="x-val" class="axis-num">0.000</div></div>
+        <div class="axis-box"><div class="axis-label">Y-AXIS</div><div id="y-val" class="axis-num">0.000</div></div>
+        <div class="axis-box"><div class="axis-label">Z-AXIS</div><div id="z-val" class="axis-num">0.000</div></div>
     </div>
+    <div id="hz-tag">Sampling: -- Hz</div>
 </div>
 
 <div class="bottom-panel">
@@ -54,28 +67,34 @@ let lastUpdate = performance.now();
 let lastHzCalc = performance.now();
 let frameCount = 0;
 let samplingRate = 60;
-let updateInterval = 200; // デフォルト 0.2秒
+let updateInterval = 200;
 
 const ctx = document.getElementById('psdChart').getContext('2d');
 const psdChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: [],
-        datasets: [{ label: 'PSD', data: [], borderColor: '#00ff41', borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 65, 0.1)' }]
+        datasets: [{
+            data: [],
+            borderColor: '#00ff41',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true,
+            backgroundColor: 'rgba(0, 255, 65, 0.05)'
+        }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: { 
-            x: { grid: { color: '#333' }, ticks: { color: '#888' } },
-            y: { grid: { color: '#333' }, beginAtZero: true, suggestedMax: 0.5, ticks: { color: '#888' } }
+            x: { grid: { color: '#2d333d' }, ticks: { color: '#666', font: { size: 10 } }, title: { display: true, text: 'Frequency (Hz)', color: '#444' } },
+            y: { grid: { color: '#2d333d' }, beginAtZero: true, suggestedMax: 0.4, ticks: { color: '#666' } }
         },
         animation: false,
         plugins: { legend: { display: false } }
     }
 });
 
-// プルダウンの変更を監視
 document.getElementById('speedSelect').addEventListener('change', (e) => {
     updateInterval = parseInt(e.target.value);
 });
@@ -84,17 +103,17 @@ function handleMotion(event) {
     const acc = event.accelerationIncludingGravity;
     if (!acc) return;
 
+    // 合成加速度の計算
     const norm = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2) / G_CONSTANT;
     dataBuffer.push(norm);
     dataBuffer.shift();
 
+    // 数値表示
     document.getElementById('x-val').innerText = (acc.x / G_CONSTANT).toFixed(3);
     document.getElementById('y-val').innerText = (acc.y / G_CONSTANT).toFixed(3);
     document.getElementById('z-val').innerText = (acc.z / G_CONSTANT).toFixed(3);
 
     const now = performance.now();
-
-    // 選択された間隔でグラフを更新
     if (now - lastUpdate >= updateInterval) {
         updatePSD();
         lastUpdate = now;
@@ -102,8 +121,8 @@ function handleMotion(event) {
 
     frameCount++;
     if (now - lastHzCalc >= 1000) {
+        document.getElementById('hz-tag').innerText = "Sampling: " + ((frameCount * 1000) / (now - lastHzCalc)).toFixed(1) + " Hz";
         samplingRate = (frameCount * 1000) / (now - lastHzCalc);
-        document.getElementById('hz-tag').innerText = samplingRate.toFixed(1) + " Hz";
         frameCount = 0;
         lastHzCalc = now;
     }
@@ -134,13 +153,17 @@ function updatePSD() {
 }
 
 document.getElementById('startBtn').addEventListener('click', async () => {
-    if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        const res = await DeviceMotionEvent.requestPermission();
-        if (res === 'granted') window.addEventListener('devicemotion', handleMotion, true);
-    } else {
-        window.addEventListener('devicemotion', handleMotion, true);
+    try {
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            const res = await DeviceMotionEvent.requestPermission();
+            if (res === 'granted') window.addEventListener('devicemotion', handleMotion, true);
+        } else {
+            window.addEventListener('devicemotion', handleMotion, true);
+        }
+        document.getElementById('startBtn').style.display = 'none';
+    } catch (e) {
+        alert("Sensor error: " + e);
     }
-    document.getElementById('startBtn').style.display = 'none';
 });
 </script>
 </body>
